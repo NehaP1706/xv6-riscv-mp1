@@ -14,7 +14,10 @@
 #include "fs.h"
 #include "sleeplock.h"
 #include "file.h"
+#include "readcount.h"
 #include "fcntl.h"
+
+uint64 total_read_bytes = 0;
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -76,7 +79,12 @@ sys_read(void)
   argint(2, &n);
   if(argfd(0, 0, &f) < 0)
     return -1;
-  return fileread(f, p, n);
+
+  int ret = fileread(f, p, n); 
+  if(ret > 0){
+    add_read_bytes((unsigned int)ret);
+  }
+  return ret;
 }
 
 uint64

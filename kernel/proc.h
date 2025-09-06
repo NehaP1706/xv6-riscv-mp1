@@ -1,4 +1,7 @@
 // Saved registers for kernel context switches.
+// Add includes at top if needed
+#include "types.h"
+
 struct context {
   uint64 ra;
   uint64 sp;
@@ -104,4 +107,16 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  #ifdef SCHEDULER_FCFS 
+    uint creation_time;
+  #endif
+
+  #ifdef SCHEDULER_CFS
+    int nice; 
+    int weight;
+    uint64 vruntime;
+    int run_ticks;
+    int allowed_slice;
+  #endif
 };

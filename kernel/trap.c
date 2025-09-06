@@ -44,7 +44,7 @@ usertrap(void)
 
   // send interrupts and exceptions to kerneltrap(),
   // since we're now in the kernel.
-  w_stvec((uint64)kernelvec);  //DOC: kernelvec
+  w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
   
@@ -81,8 +81,26 @@ usertrap(void)
     kexit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  #if defined(SCHEDULER_CFS)
+    if (which_dev == 2) {
+      struct proc *p = myproc();
+      if (p) {
+        // increment the number of ticks this process has run in its current slice
+        p->run_ticks++;
+        // only yield (preempt) when it has used up its allowed slice
+        if (p->run_ticks >= p->allowed_slice) {
+          yield();
+        }
+      }
+    }
+  #elif defined(SCHEDULER_FCFS)
+    // FCFS: do NOT preempt on timer interrupts; let running process run until it blocks/exits.
+    // (do nothing here)
+  #else
+    // default (Round-Robin): preempt on every timer interrupt.
+    if (which_dev == 2)
+      yield();
+  #endif
 
   prepare_return();
 
@@ -152,8 +170,24 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0)
-    yield();
+    // give up the CPU if this is a timer interrupt.
+  #if defined(SCHEDULER_CFS)
+    if (which_dev == 2 && myproc() != 0) {
+      struct proc *p = myproc();
+      if (p) {
+        p->run_ticks++;
+        if (p->run_ticks >= p->allowed_slice) {
+          yield();
+        }
+      }
+    }
+  #elif defined(SCHEDULER_FCFS)
+    // FCFS: do not preempt on timer
+  #else
+    // default round-robin
+    if (which_dev == 2 && myproc() != 0)
+      yield();
+  #endif
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.

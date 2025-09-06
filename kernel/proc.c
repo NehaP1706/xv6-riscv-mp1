@@ -26,6 +26,131 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+#ifdef SCHEDULER_FCFS
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct proc *chosen;
+  struct cpu *c = mycpu();
+
+  c->proc = 0;
+  for(;;){
+    intr_on(); // enable interrupts
+
+    chosen = 0;
+    uint64 earliest = (uint64)-1;
+
+    // find runnable process with earliest creation_time
+    for(p = proc; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->state == RUNNABLE){
+        if(p->creation_time < earliest){
+          if(chosen) release(&chosen->lock);
+          earliest = p->creation_time;
+          chosen = p;
+          continue;
+        }
+      }
+      release(&p->lock);
+    }
+
+    if(chosen){
+      chosen->state = RUNNING;
+      c->proc = chosen;
+
+      printf("[FCFS] Scheduling PID %d created at %d\n", 
+             chosen->pid, chosen->creation_time);
+
+      swtch(&c->context, &chosen->context);
+
+      c->proc = 0;
+      release(&chosen->lock);
+    }
+  }
+}
+#endif
+
+#ifdef SCHEDULER_CFS
+
+#define TARGET_LATENCY 48
+#define MIN_SLICE 3
+
+void
+scheduler(void)
+{
+  struct proc *p;
+  struct cpu *c = mycpu();
+  c->proc = 0;
+
+  for(;;){
+    sti();
+
+    acquire(&ptable.lock);
+
+    // Count runnable procs
+    int runnable = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNABLE) runnable++;
+    }
+
+    if(runnable == 0){
+      release(&ptable.lock);
+      continue;
+    }
+
+    int time_slice = TARGET_LATENCY / runnable;
+    if(time_slice < MIN_SLICE) time_slice = MIN_SLICE;
+
+    // Logging: print all runnable pids and vruntime
+    cprintf("[Scheduler Tick]\n");
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNABLE){
+        cprintf("PID: %d | vRuntime: %lld\n", p->pid, p->vruntime);
+      }
+    }
+
+    // Find the runnable process with smallest vruntime
+    struct proc *best = 0;
+    uint64_t min_vruntime = (uint64_t)-1;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE) continue;
+      if(p->vruntime < min_vruntime){
+        min_vruntime = p->vruntime;
+        best = p;
+      }
+    }
+
+    if(best){
+      cprintf("--> Scheduling PID %d (lowest vRuntime)\n", best->pid);
+      // set per-process run_ticks allowed
+      best->run_ticks = 0;
+      best->state = RUNNING;
+      c->proc = best;
+      switchuvm(best);
+
+      // run until preempted (by timer setting p->state back to RUNNABLE) or sleeps/exits
+      swtch(&c->scheduler, best->context);
+      switchkvm();
+
+      // On return, update vruntime using ticks used by process in this run
+      // best->run_ticks holds number of ticks it actually ran in this slice (set by timer/trap)
+      uint64_t delta = best->run_ticks;
+      if(delta > 0){
+        // vruntime += delta * (1024 / weight)
+        // To avoid fraction, compute: delta * 1024 / weight
+        uint64_t incr = (delta * 1024) / (best->weight ? best->weight : 1);
+        best->vruntime += incr;
+      }
+
+      c->proc = 0;
+    }
+
+    release(&ptable.lock);
+  }
+}
+#endif
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -124,6 +249,18 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+
+  #ifdef SCHEDULER_FCFS
+    p->creation_time = ticks; // ticks is the global tick counter
+  #endif
+
+  #ifdef SCHEDULER_CFS
+    p->nice = 0;
+    p->weight = 1024;   // nice 0 -> weight 1024
+    p->vruntime = 0;
+    p->run_ticks = 0;
+    p->allowed_slice = 3; // default min slice; will be updated on scheduling
+  #endif
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){

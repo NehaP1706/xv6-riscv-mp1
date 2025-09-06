@@ -11,10 +11,9 @@
 void
 start()
 {
-  int r;
   extern int main();
-  r = main();
-  exit(r);
+  main();
+  exit(0);
 }
 
 char*

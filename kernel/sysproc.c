@@ -6,6 +6,13 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "readcount.h"
+
+uint64
+sys_getreadcount(void)
+{
+  return global_read_bytes;
+}
 
 uint64
 sys_exit(void)
