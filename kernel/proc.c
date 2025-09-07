@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include <stdint.h> 
 
 struct cpu cpus[NCPU];
 
@@ -25,6 +26,11 @@ extern char trampoline[]; // trampoline.S
 // memory model when using p->parent.
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
+
+// Compute weight from nice value
+uint64 compute_weight(int nice) {
+    return nice_to_weight[nice];
+}
 
 #ifdef SCHEDULER_FCFS
 void
@@ -811,14 +817,25 @@ procdump(void)
   char *state;
 
   printf("\n");
+  printf("PID\tState\tvruntime\tNice\tWeight\n");
+  printf("-----------------------------------\n");
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->state == UNUSED)
+    {
       continue;
+    }
     if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+    {
       state = states[p->state];
+    }
     else
+    {
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    }
+    printf("%s\n", state);
+    #ifdef SCHEDULER_CFS
+      printf("%d\t%d\t%lld\t%d\t%lld\n",p->pid, p->state, p->vruntime, p->nice, p->weight);
+    #endif
     printf("\n");
   }
 }

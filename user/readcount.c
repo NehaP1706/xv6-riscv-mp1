@@ -8,7 +8,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  printf("Initial: %d\n", getreadcount());
+  printf("Initial: %ld\n", getreadcount());
 
   int fd = open(argv[1], 0);
   if (fd < 0) {
@@ -20,6 +20,6 @@ int main(int argc, char *argv[]) {
   read(fd, buf, sizeof(buf));
   close(fd);
 
-  printf("After: %d\n", getreadcount());
+  printf("After: %ld\n", getreadcount());
   exit(0);
 }

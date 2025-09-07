@@ -82,23 +82,19 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   #if defined(SCHEDULER_CFS)
-    if (which_dev == 2) {
+    if (which_dev == 2) { // timer
       struct proc *p = myproc();
-      if (p) {
-        // increment the number of ticks this process has run in its current slice
-        p->run_ticks++;
-        // only yield (preempt) when it has used up its allowed slice
-        if (p->run_ticks >= p->allowed_slice) {
-          yield();
-        }
+      if(p && p->state == RUNNING){
+          p->run_ticks++;
+          if(p->run_ticks >= p->allowed_slice)
+              yield();
       }
     }
   #elif defined(SCHEDULER_FCFS)
-    // FCFS: do NOT preempt on timer interrupts; let running process run until it blocks/exits.
-    // (do nothing here)
+  // do not preempt
   #else
-    // default (Round-Robin): preempt on every timer interrupt.
-    if (which_dev == 2)
+  // RR: preempt every timer tick
+    if(which_dev == 2 && myproc() && myproc()->state == RUNNING)
       yield();
   #endif
 

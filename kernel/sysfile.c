@@ -17,8 +17,6 @@
 #include "readcount.h"
 #include "fcntl.h"
 
-uint64 total_read_bytes = 0;
-
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -82,6 +80,7 @@ sys_read(void)
 
   int ret = fileread(f, p, n); 
   if(ret > 0){
+    //global_read_bytes = 0;
     add_read_bytes((unsigned int)ret);
   }
   return ret;
