@@ -110,7 +110,7 @@ usertrap(void)
       //   if (p->weight <= 0) p->weight = 1;
       // }
     }
-  }
+  
   #elif defined(SCHEDULER_FCFS)
   // do not preempt
   #else
