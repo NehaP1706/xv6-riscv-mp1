@@ -2,6 +2,10 @@
 // Add includes at top if needed
 #include "types.h"
 
+void srand(unsigned int seed); 
+
+int rand(void); 
+
 struct context {
   uint64 ra;
   uint64 sp;
@@ -125,5 +129,8 @@ struct proc {
     uint64 vruntime;
     int run_ticks;
     int allowed_slice;
+    uint last_run_ticks;
   #endif
 };
+
+uint64 compute_weight(int nice); 

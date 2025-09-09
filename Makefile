@@ -3,10 +3,10 @@ U=user
 
 ifdef SCHEDULER
   ifeq ($(SCHEDULER),CFS)
-    CFLAGS += -DSCHEDULER_CFS
+    CFLAGS += -D SCHEDULER_CFS
   endif
   ifeq ($(SCHEDULER),FCFS)
-    CFLAGS += -DSCHEDULER_FCFS
+    CFLAGS += -D SCHEDULER_FCFS
   endif
 endif
 
@@ -75,6 +75,11 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding
 CFLAGS += -fno-common -nostdlib
 CFLAGS += -fno-builtin-strncpy -fno-builtin-strncmp -fno-builtin-strlen -fno-builtin-memset
+CFLAGS += -D SCHEDULER_$(SCHEDULER)
+
+$(info >>> Building with scheduler: $(SCHEDULER))
+$(info >>> CFLAGS: $(CFLAGS))
+
 CFLAGS += -fno-builtin-memmove -fno-builtin-memcmp -fno-builtin-log -fno-builtin-bzero
 CFLAGS += -fno-builtin-strchr -fno-builtin-exit -fno-builtin-malloc -fno-builtin-putc
 CFLAGS += -fno-builtin-free
@@ -104,6 +109,9 @@ $K/%.o: $K/%.S
 tags: $(OBJS)
 	etags kernel/*.S kernel/*.c
 
+flags:
+	@echo $(SCHEDULER)
+
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
 _%: %.o $(ULIB) $U/user.ld
@@ -116,6 +124,9 @@ $U/usys.S : $U/usys.pl
 
 $U/usys.o : $U/usys.S
 	$(CC) $(CFLAGS) -c -o $U/usys.o $U/usys.S
+
+$U/%.o: $U/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 $U/_forktest: $U/forktest.o $(ULIB)
 	# forktest has less library code linked in - needs to be small
@@ -153,6 +164,7 @@ UPROGS=\
 	$U/_forphan\
 	$U/_dorphan\
 	$U/_readcount\
+	$U/_schedtest\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

@@ -82,14 +82,35 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   #if defined(SCHEDULER_CFS)
-    if (which_dev == 2) { // timer
-      struct proc *p = myproc();
-      if(p && p->state == RUNNING){
-          p->run_ticks++;
-          if(p->run_ticks >= p->allowed_slice)
-              yield();
-      }
+  //truct proc *p = myproc();
+  if(p && p->state == RUNNING){
+      p->run_ticks++;
+
+        if (p->run_ticks >= p->allowed_slice) {
+         uint64 incr = (p->run_ticks * 1024) / p->weight;
+         if (incr == 0) incr = 1;
+         p->vruntime += incr;
+         p->run_ticks = 0;
+        
+      //penalize CPU hogs slightly
+      // if (p->nice < 19) {
+      //   p->nice++;
+      //   p->weight = compute_weight(p->nice);
+      //   if (p->weight <= 0) p->weight = 1;
+
+      //   yield();
+       }
+      //}
+     // else if (p->run_ticks < p->allowed_slice / 2) {
+      // reward interactive processes
+      // if (p->nice > -20) {
+      //   p->nice--;
+      //   p->weight = compute_weight(p->nice);
+
+      //   if (p->weight <= 0) p->weight = 1;
+      // }
     }
+  }
   #elif defined(SCHEDULER_FCFS)
   // do not preempt
   #else
@@ -167,23 +188,8 @@ kerneltrap()
 
   // give up the CPU if this is a timer interrupt.
     // give up the CPU if this is a timer interrupt.
-  #if defined(SCHEDULER_CFS)
-    if (which_dev == 2 && myproc() != 0) {
-      struct proc *p = myproc();
-      if (p) {
-        p->run_ticks++;
-        if (p->run_ticks >= p->allowed_slice) {
-          yield();
-        }
-      }
-    }
-  #elif defined(SCHEDULER_FCFS)
-    // FCFS: do not preempt on timer
-  #else
-    // default round-robin
     if (which_dev == 2 && myproc() != 0)
       yield();
-  #endif
 
   // the yield() may have caused some traps to occur,
   // so restore trap registers for use by kernelvec.S's sepc instruction.
