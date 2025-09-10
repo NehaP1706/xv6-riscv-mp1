@@ -8,6 +8,46 @@
 #include "vm.h"
 #include "readcount.h"
 
+extern struct proc proc[NPROC];
+
+uint64
+sys_waitx(void)
+{
+  uint64 up_w, up_r, up_t;
+  argaddr(0, &up_w);
+  argaddr(1, &up_r);
+  argaddr(2, &up_t);
+  return waitx(up_w, up_r, up_t);
+}
+
+uint64
+sys_getprocesstimes(void)
+{
+  int pid;
+  uint64 user_addr;
+  struct proc *p;
+
+  argint(0, &pid);
+  argaddr(1, &user_addr);
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      struct times t;
+      t.creation_time = p->creation_time;
+      t.start_time    = p->start_time;
+      t.end_time      = p->end_time;
+      release(&p->lock);
+
+      if(copyout(myproc()->pagetable, user_addr, (char*)&t, sizeof(t)) < 0)
+        return -1;
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1;
+}
+
 uint64
 sys_getreadcount(void)
 {

@@ -25,6 +25,9 @@ char* sys_sbrk(int,int);
 int pause(int);
 int uptime(void);
 uint64 getreadcount(void);
+struct times;
+int getprocesstimes(int pid, struct times *t);
+int waitx(int *wtime, int *rtime, int *tatime);
 
 // ulib.c
 int stat(const char*, struct stat*);

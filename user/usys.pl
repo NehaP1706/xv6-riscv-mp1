@@ -43,4 +43,6 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("getreadcount");
+entry("getprocesstimes");
+entry("waitx");
 

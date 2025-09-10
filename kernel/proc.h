@@ -118,10 +118,10 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-
-  #ifdef SCHEDULER_FCFS 
-    uint creation_time;
-  #endif
+ 
+  uint creation_time;
+  uint start_time;   
+  uint end_time;       
 
   #ifdef SCHEDULER_CFS
     int nice; 
@@ -131,6 +131,12 @@ struct proc {
     int allowed_slice;
     uint last_run_ticks;
   #endif
+};
+
+struct times {
+  uint64 creation_time;
+  uint64 start_time;
+  uint64 end_time;
 };
 
 uint64 compute_weight(int nice); 

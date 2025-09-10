@@ -36,11 +36,71 @@ int rand(void) {
     return (rand_seed / 65536) % 32768;  // returns 0..32767
 }
 
+struct spinlock wait_lock;
+
+int
+waitx(uint64 addr_w, uint64 addr_r, uint64 addr_t)
+{
+  struct proc *pp;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+  for(;;){
+    havekids = 0;
+    for(pp = proc; pp < &proc[NPROC]; pp++){
+      if(pp->parent == p){
+        acquire(&pp->lock);
+        havekids = 1;
+        if(pp->state == ZOMBIE){
+          // compute times while holding child's lock
+          int wtime = (int)(pp->start_time - pp->creation_time);
+          int rtime = (int)(pp->end_time - pp->start_time);
+          int tatime = (int)(pp->end_time - pp->creation_time);
+
+          pid = pp->pid;
+
+          // copy times out to parent's user space (use parent's pagetable)
+          if(addr_w && copyout(p->pagetable, addr_w, (char *)&wtime, sizeof(wtime)) < 0){
+            release(&pp->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          if(addr_r && copyout(p->pagetable, addr_r, (char *)&rtime, sizeof(rtime)) < 0){
+            release(&pp->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          if(addr_t && copyout(p->pagetable, addr_t, (char *)&tatime, sizeof(tatime)) < 0){
+            release(&pp->lock);
+            release(&wait_lock);
+            return -1;
+          }
+
+          // freeproc is available here (we're in proc.c)
+          freeproc(pp);
+          release(&pp->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&pp->lock);
+      }
+    }
+
+    if(!havekids || killed(p)){
+      release(&wait_lock);
+      return -1;
+    }
+
+    // Sleep on parent proc pointer, using wait_lock (caller must hold wait_lock)
+    sleep(p, &wait_lock);  // DOC: wait-sleep - releases wait_lock, acquires p->lock inside sleep
+  }
+}
+
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
 // memory model when using p->parent.
 // must be acquired before any p->lock.
-struct spinlock wait_lock;
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -141,9 +201,9 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
-  #ifdef SCHEDULER_FCFS
-    p->creation_time = ticks; // ticks is the global tick counter
-  #endif
+  p->creation_time = ticks;   // global ticks counter
+  p->start_time = 0;          // not scheduled yet
+  p->end_time = 0;            // not finished yet
 
   #ifdef SCHEDULER_CFS
     //p->nice = rand()%40 - 20; // random nice value between -20 and +19
@@ -383,6 +443,8 @@ kexit(int status)
   acquire(&p->lock);
 
   p->xstate = status;
+  p->end_time = ticks;  
+  printf("===========================================UPDATED END TIME==============================================\n");     // record exit time
   p->state = ZOMBIE;
 
   release(&wait_lock);
@@ -483,6 +545,9 @@ scheduler(void)
     }
 
     if(chosen){
+      if(chosen->start_time == 0) {
+          chosen->start_time = ticks;  // record first scheduled
+      }
       // chosen->lock is held
       chosen->state = RUNNING;
       c->proc = chosen;
@@ -544,6 +609,9 @@ if(runnable == 0) {
     }
 
 if(best){
+    if(best->start_time == 0) {
+    best->start_time = ticks;  // record first scheduled
+  }
     printf("--> Scheduling PID %d (lowest vRuntime)\n", best->pid);
     // assign slice based on number of runnable processes
     int time_slice = TARGET_LATENCY / runnable;
@@ -573,6 +641,9 @@ if(best){
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+        if(p->start_time == 0) {
+          p->start_time = ticks;   // record first scheduled
+        }
         printf("[CPU %d] Switching -> PID %d (state=RUNNABLE)\n", cpuid(), p->pid);
         p->state = RUNNING;
         c->proc = p;

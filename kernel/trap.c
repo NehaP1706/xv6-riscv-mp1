@@ -90,7 +90,7 @@ usertrap(void)
          uint64 incr = (p->run_ticks * 1024) / p->weight;
          if (incr == 0) incr = 1;
          p->vruntime += incr;
-         p->run_ticks = 0;
+         //p->run_ticks = 0;
         
       //penalize CPU hogs slightly
       // if (p->nice < 19) {

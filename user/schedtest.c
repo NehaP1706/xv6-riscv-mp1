@@ -16,7 +16,7 @@ void delay_ticks(int ticks) {
   int start = uptime();
   while(uptime() - start < ticks) {
     volatile int x = 0;
-    for(int i = 0; i < 2000000000; i++) x += i;  // heavier busy work
+    for(int i = 0; i < 2000000; i++) x += i;
   }
 }
 
@@ -28,12 +28,17 @@ main(int argc, char *argv[])
     exit(1);
   }
 
+  int sum_wait = 0;
+  int sum_runtime = 0;
+  int sum_turnaround = 0;
+
   int n = atoi(argv[1]);
   int maxwork = atoi(argv[2]);
   if(n > MAXCHILD) n = MAXCHILD;
 
   int start_ticks = uptime();
 
+  // Spawn children
   for(int i = 0; i < n; i++){
     int delay = randnum(30);          // arrival offset in ticks
     int work = randnum(maxwork) + 1;  // random work [1..maxwork]
@@ -41,24 +46,35 @@ main(int argc, char *argv[])
     int pid = fork();
     if(pid == 0){
       // CHILD
-      delay_ticks(delay);              // staggered arrival
-      int submit = uptime();
-      int s = uptime();
+      delay_ticks(delay);
 
-      // Burn CPU long enough to span multiple ticks
-      for(volatile int j = 0; j < work * 10000000; j++);  // heavier CPU work
+      // Burn CPU
+      for(volatile int j = 0; j < work * 10000000; j++);
 
-      int e = uptime();
-      printf("CHILD %d: work=%d submit=%d start=%d end=%d runtime=%d wait=%d turnaround=%d\n",
-             getpid(), work, submit, s, e, e-s, s-submit, e-submit);
-      exit(0);
+      exit(0);   // don't fetch times here!
     }
   }
 
-  for(int i = 0; i < n; i++)
-    wait(0);
+  // Parent: collect stats with waitx
+  for(int i = 0; i < n; i++){
+    int wtime, rtime, tatime;
+    int pid = waitx(&wtime, &rtime, &tatime);
+    if(pid > 0){
+      printf("CHILD %d: wait=%d runtime=%d turnaround=%d\n",
+             pid, wtime, rtime, tatime);
+
+             sum_runtime += rtime;
+             sum_wait += wtime;
+             sum_turnaround += tatime;
+    } else {
+      printf("waitx failed\n");
+    }
+  }
 
   int end_ticks = uptime();
   printf("Parent: all children finished in %d ticks\n", end_ticks - start_ticks);
+  printf("=============================================STATISTICS===============================\n");
+  printf("Average: wait=%d runtime=%d turnaround=%d\n",
+         sum_wait / n, sum_runtime / n, sum_turnaround / n);
   exit(0);
 }
