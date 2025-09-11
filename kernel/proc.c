@@ -22,7 +22,7 @@ static void freeproc(struct proc *p);
 extern char trampoline[]; // trampoline.S
 
 uint64 compute_weight(int nice) {
-    return nice_to_weight[nice];
+    return nice_to_weight[nice + 20];
 }
 
 static unsigned long rand_seed = 1;
